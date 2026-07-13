@@ -23,6 +23,7 @@ export interface MatchSetupState {
   opponentTeam: string;
   selectedTeam: string[];
   expectedLead: string;
+  preview?: TeamPreviewRecommendation;
   status: "active" | "complete";
 }
 
@@ -31,8 +32,17 @@ export interface ActivePokemon {
   hp: number;
   currentHp?: number;
   maxHp?: number;
+  lastMove?: string;
   status: string;
   moves: string[];
+}
+
+export interface TeamStatusEntry {
+  name: string;
+  state: "Active" | "Bench" | "Fainted";
+  condition: "Healthy" | "Burn" | "Paralysis" | "Poison" | "Sleep" | "Frozen";
+  moves?: string[];
+  maxHp?: number;
 }
 
 export interface TurnRestrictions {
@@ -49,12 +59,14 @@ export interface TurnState {
   emergency: boolean;
   myActive: ActivePokemon[];
   opponentActive: ActivePokemon[];
+  teamStatus?: TeamStatusEntry[];
   bench: string;
   weather: string;
   field: string;
   restrictions: TurnRestrictions;
   previousTurn: string;
   question: string;
+  recommendation?: Recommendation;
 }
 
 export interface BattleRecord {
@@ -107,6 +119,7 @@ export interface LocalAnalysis {
 }
 
 export interface Recommendation {
+  provider?: "Gemini" | "Groq fallback";
   actions: Array<{ pokemon: string; action: string; target: string }>;
   reason: string;
   risk: string;
@@ -116,6 +129,7 @@ export interface Recommendation {
 }
 
 export interface TeamPreviewRecommendation {
+  provider?: "Gemini" | "Groq fallback";
   selected: Array<{ name: string; position: string; role: string; assumedMoves: string[] }>;
   leads: string[];
   gamePlan: string;
