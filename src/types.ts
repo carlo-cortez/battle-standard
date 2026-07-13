@@ -31,6 +31,7 @@ export interface ActivePokemon {
   hp: number;
   currentHp?: number;
   maxHp?: number;
+  lastMove?: string;
   status: string;
   moves: string[];
 }

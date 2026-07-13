@@ -1,7 +1,7 @@
 import type { ActivePokemon, BattleRecord, MatchSetupState, PokemonBuild, TurnState } from "../types";
 
 export const createPokemon = (): PokemonBuild => ({
-  id: crypto.randomUUID(), name: "", maxHp: 100, ability: "", item: "", moves: ["", "", "", ""], role: "", notes: "",
+  id: crypto.randomUUID(), name: "", ability: "", item: "", moves: ["", "", "", ""], role: "", notes: "",
 });
 
 export const createMatch = (): MatchSetupState => ({
@@ -18,10 +18,21 @@ export const createTurn = (): TurnState => ({
   previousTurn: "", question: "Move or switch?",
 });
 
-export const createNextTurn = (current: TurnState): TurnState => ({
-  ...structuredClone(current), id: crypto.randomUUID(), turn: current.turn + 1,
-  previousTurn: "", question: current.question,
-});
+export const createNextTurn = (current: TurnState): TurnState => {
+  const actions = current.myActive.filter((mon) => mon.name && mon.lastMove).map((mon) => `${mon.name}: ${mon.lastMove}`);
+  const next = structuredClone(current);
+  return {
+    ...next, id: crypto.randomUUID(), turn: current.turn + 1,
+    myActive: next.myActive.map((mon) => {
+      const switchedTo = mon.lastMove?.match(/^Switch\s*(?:→\s*)?(.+)?$/)?.[1]?.trim();
+      if (mon.lastMove === "Fainted") return { ...mon, name: "", hp: 0, currentHp: 0, lastMove: "" };
+      return { ...mon, name: switchedTo || mon.name, lastMove: "" };
+    }),
+    previousTurn: actions.join(" · ") || current.previousTurn,
+    question: "Move or switch?",
+    restrictions: { ...next.restrictions, fakeOutUsed: false, protectUnavailable: false },
+  };
+};
 
 export const createRecord = (): BattleRecord => ({
   id: crypto.randomUUID(), createdAt: new Date().toISOString(), opponentTeam: "", mySelectedTeam: "", leadMatchup: "",

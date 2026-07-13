@@ -24,9 +24,11 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-or-publishable-key
 GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-3.5-flash
+GROQ_API_KEY=...
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
-The Supabase URL and anon/publishable key are intentionally present twice: the `VITE_` values configure the browser client; the unprefixed values let the server validate the signed-in user. The anon key is designed for browser use with Row Level Security. `GEMINI_API_KEY` is server-only and must never be prefixed with `VITE_`.
+The Supabase URL and anon/publishable key are intentionally present twice: the `VITE_` values configure the browser client; the unprefixed values let the server validate the signed-in user. The anon key is designed for browser use with Row Level Security. AI keys are server-only and must never be prefixed with `VITE_`. Gemini is tried first; Groq is used automatically when Gemini is missing or returns a quota error.
 
 ## Supabase setup
 

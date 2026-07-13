@@ -1,0 +1,99 @@
+.setup-grid > .panel,
+.setup-grid > div.stack > .panel {
+  padding: 24px;
+}
+
+.setup-grid .eyebrow {
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.setup-grid > section:first-child > h2,
+.setup-grid .section-head h3,
+.setup-grid .team-preview h3 {
+  font-family: Manrope, system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  margin: 7px 0 12px;
+}
+
+.setup-grid .selection-list b,
+.setup-grid .preview-picks b {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.setup-grid .selection-list small,
+.setup-grid .preview-picks small {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.setup-grid .preview-empty {
+  min-height: 470px;
+  padding: 24px;
+}
+
+.setup-grid .preview-empty-mark {
+  font-size: 48px;
+  margin-bottom: 22px;
+}
+
+.setup-grid .preview-empty h3 {
+  margin: 8px 0 12px;
+}
+
+.setup-grid .team-preview:not(.preview-empty) {
+  min-height: 470px;
+}
+
+.setup-grid.is-loading .preview-empty {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-style: solid;
+  border-color: #66703d;
+  overflow: hidden;
+}
+
+.setup-grid.is-loading .preview-empty > * {
+  visibility: hidden;
+}
+
+.setup-grid.is-loading .preview-empty::before {
+  content: "";
+  position: absolute;
+  width: 58px;
+  height: 58px;
+  border: 2px solid #343d2a;
+  border-top-color: var(--accent);
+  border-right-color: var(--cyan);
+  border-radius: 50%;
+  animation: plan-spin 0.9s linear infinite;
+}
+
+.setup-grid.is-loading .preview-empty::after {
+  content: "Building your matchup plan…";
+  display: block;
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: calc(50% - 65px);
+  color: var(--ink);
+  font: 700 13px Manrope, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+@keyframes plan-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-grid.is-loading .preview-empty::before {
+    animation: none;
+    border-color: var(--accent);
+  }
+}

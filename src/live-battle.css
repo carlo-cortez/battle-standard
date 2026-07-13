@@ -1,0 +1,365 @@
+.live-layout.is-loading main::after {
+  content: "Building your recommendation…";
+  order: 1;
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #5f6135;
+  border-radius: 10px;
+  color: var(--ink);
+  font: 700 13px Manrope, system-ui, sans-serif;
+  background:
+    linear-gradient(100deg, transparent 25%, #ffffff0a 45%, #ffffff16 50%, #ffffff0a 55%, transparent 75%),
+    linear-gradient(145deg, #232315, #15170f);
+  background-size: 220% 100%, 100% 100%;
+  animation: recommendation-shimmer 1.15s ease-in-out infinite;
+  box-shadow: 0 0 0 1px #ffcb4508, 0 16px 50px #0002;
+}
+
+@keyframes recommendation-shimmer {
+  from { background-position: 120% 0, 0 0; }
+  to { background-position: -120% 0, 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-layout.is-loading main::after {
+    animation: none;
+  }
+}
+
+.follow-up-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.follow-up-head b {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font: 700 11px Manrope, system-ui, sans-serif;
+}
+
+.follow-up-head small {
+  color: var(--muted);
+  font: 9px DM Mono;
+  text-transform: uppercase;
+}
+.follow-up-body { padding-top: 10px; }
+
+.active-row > .move-taps { display: none; }
+.turn-confirmation {
+  border-top: 1px solid #414129;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+.turn-confirmation-head,
+.turn-confirmation-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.turn-confirmation-head b { display: block; margin-top: 4px; font-size: 12px; }
+.turn-confirmation-head small,
+.turn-confirmation-next span { color: var(--muted); font: 9px DM Mono; text-transform: uppercase; }
+.action-confirm-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid #343522;
+}
+.action-confirm-row > strong { font-size: 11px; }
+.action-choice-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.confirm-move-grid { flex: 1 1 420px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.confirm-move-grid button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid #303a48; border-radius: 6px; background: #10161e; color: #8d99a8; padding: 8px; font-size: 9px; cursor: pointer; }
+.confirm-move-grid button.active { border-color: var(--cyan); background: #16302f; color: #bff8f2; }
+.confirm-move-grid button:disabled { opacity: .35; cursor: default; }
+.action-choice { flex: 0 0 auto; border: 1px solid #303a48; border-radius: 6px; background: #10161e; color: #8d99a8; padding: 8px 10px; font-size: 9px; cursor: pointer; }
+.action-choice.active { border-color: var(--cyan); background: #16302f; color: #bff8f2; }
+.action-choice.fainted { color: #df8a7e; }
+.action-choice.fainted.active { border-color: var(--red); background: #321b18; color: #ffc2b9; }
+.action-confirm-row > input { grid-column: 2; padding: 8px 10px; font-size: 11px; }
+.turn-confirmation-next { margin-top: 12px; }
+
+.follow-up-panel .follow-up,
+.confirmation-panel .turn-confirmation {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+@media (max-width: 600px) {
+  .action-confirm-row { grid-template-columns: 1fr; }
+  .action-confirm-row > input { grid-column: 1; }
+  .action-choice-row { align-items: stretch; flex-wrap: wrap; }
+  .confirm-move-grid { grid-template-columns: 1fr 1fr; }
+  .turn-confirmation-next { align-items: stretch; flex-direction: column; }
+}
+
+@media (min-width: 801px) {
+  .live-layout > main.stack { gap: 12px; }
+
+  .live-layout .live-head h2 { font-size: 27px; }
+
+  .live-layout .turn-card {
+    padding: 18px;
+  }
+
+  .live-layout .decision-panel {
+    padding: 18px;
+  }
+
+  .live-layout .decision-panel ol {
+    margin: 14px 0;
+  }
+
+  .live-layout .decision-panel li {
+    padding: 9px 0;
+  }
+
+  .live-layout main > .recommendation {
+    padding: 16px 18px;
+  }
+
+  .live-layout main > .recommendation .action {
+    padding: 8px 0;
+  }
+
+  .live-layout main > .recommendation .action strong {
+    font-size: 13px;
+  }
+
+  .live-layout main > .recommendation dl {
+    margin-top: 6px;
+  }
+
+  .live-layout main > .recommendation dl > div {
+    padding: 7px 0;
+  }
+
+  .live-layout main > .recommendation dd {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .live-layout .follow-up,
+  .live-layout .turn-confirmation {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  .live-layout .follow-up-body {
+    padding-top: 7px;
+  }
+
+  .live-layout .chat-compose,
+  .live-layout .turn-confirmation-next {
+    margin-top: 7px;
+  }
+
+  .live-layout .chat-compose input,
+  .live-layout .action-confirm-row > input {
+    padding: 7px 9px;
+  }
+
+  .live-layout .action-confirm-row {
+    padding: 7px 0;
+  }
+
+  .live-layout .analysis {
+    padding: 14px 16px;
+  }
+
+  .live-layout .analysis-grid {
+    gap: 14px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main {
+    width: min(100%, 1120px);
+    margin-inline: auto;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > aside {
+    display: none;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .recommendation dl {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 18px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .recommendation dl > div {
+    min-width: 0;
+  }
+
+  .page:has(.live-layout) {
+    padding-top: 24px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .turn-card {
+    padding: 14px 16px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .sides {
+    margin-bottom: 5px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .active-row {
+    margin-top: 4px;
+    gap: 5px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .active-row > input,
+  .live-layout:has(.segmented.small button:last-child.active) .hp-input input,
+  .live-layout:has(.segmented.small button:last-child.active) .exact-hp input {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    font-size: 12px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .hp-steps button,
+  .live-layout:has(.segmented.small button:last-child.active) .move-taps button {
+    padding: 4px 7px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .move-taps {
+    margin-top: -1px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .turn-card > .field {
+    margin: 6px 0;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .turn-card > .field input {
+    padding: 8px 10px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .quick-picks button {
+    padding: 4px 8px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .submit-row {
+    margin-top: 6px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) .submit-row .button {
+    padding: 8px 12px;
+  }
+}
+
+@media (min-width: 1050px) {
+  .live-layout:has(.segmented.small button:last-child.active) > main {
+    width: min(100%, 1450px);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+  }
+
+  .live-layout:not(.is-loading):has(.segmented.small button:last-child.active) > main:not(:has(> .recommendation))::before {
+    content: "Your recommendation appears here.\A\AAdd the current battle state, then choose Get recommendation.";
+    white-space: pre-line;
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 100%;
+    display: grid;
+    align-content: center;
+    padding: 28px;
+    border: 1px dashed #4d5030;
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.55;
+    background: linear-gradient(145deg, #191c12, #11140e);
+  }
+
+  .live-layout.is-loading:has(.segmented.small button:last-child.active) > main::after {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 100%;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .live-head {
+    grid-column: 1 / -1;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .sides {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .versus {
+    display: none;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .mine .active-row {
+    grid-template-columns: minmax(150px, 1fr) 154px auto;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .theirs .active-row {
+    grid-template-columns: minmax(150px, 1fr) 92px auto;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .exact-hp input {
+    min-width: 64px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .theirs .hp-input,
+  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .theirs .hp-input input {
+    min-width: 92px;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .recommendation {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .follow-up-panel {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .action-confirm-row {
+    grid-template-columns: 1fr;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .action-choice-row {
+    flex-wrap: wrap;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .confirm-move-grid {
+    flex-basis: 100%;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .action-confirm-row > input {
+    grid-column: 1;
+  }
+
+  .live-layout:has(.segmented.small button:last-child.active) > main > .analysis {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+}
+
+@media (max-width: 800px) {
+  .follow-up-head small { display: none; }
+}
