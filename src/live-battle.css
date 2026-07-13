@@ -92,7 +92,42 @@
   padding-top: 0;
 }
 
+.team-status { padding: 0; overflow: hidden; }
+.team-status > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  list-style: none;
+  cursor: pointer;
+}
+.team-status > summary::-webkit-details-marker { display: none; }
+.team-status > summary::after {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #334250;
+  border-radius: 50%;
+  color: var(--cyan);
+  font: 12px DM Mono;
+}
+.team-status[open] > summary::after { content: "−"; }
+.team-status > summary b { display: block; margin-top: 3px; font-size: 11px; }
+.team-status > summary small { margin-left: auto; color: var(--muted); font: 8px DM Mono; text-transform: uppercase; }
+.team-status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 0 16px 14px; }
+.team-status-item { display: grid; grid-template-columns: 1fr auto; gap: 7px; padding: 9px; border: 1px solid var(--line); border-radius: 7px; background: #0f151d; }
+.team-status-item strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.team-status-item button { border: 1px solid #354251; border-radius: 99px; background: transparent; color: var(--muted); padding: 3px 7px; font-size: 8px; cursor: pointer; }
+.team-status-item select { grid-column: 1 / -1; padding: 7px; font-size: 9px; }
+.team-status-item.fainted { border-color: #59322f; }
+.team-status-item.fainted button { color: var(--red); }
+
 @media (max-width: 600px) {
+  .team-status-grid { grid-template-columns: 1fr 1fr; }
+  .team-status > summary small { display: none; }
   .action-confirm-row { grid-template-columns: 1fr; }
   .action-confirm-row > input { grid-column: 1; }
   .action-choice-row { align-items: stretch; flex-wrap: wrap; }
@@ -269,7 +304,7 @@
     content: "Your recommendation appears here.\A\AAdd the current battle state, then choose Get recommendation.";
     white-space: pre-line;
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 3;
     min-height: 100%;
     display: grid;
     align-content: center;
@@ -284,7 +319,7 @@
 
   .live-layout.is-loading:has(.segmented.small button:last-child.active) > main::after {
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 3;
     min-height: 100%;
   }
 
@@ -292,9 +327,14 @@
     grid-column: 1 / -1;
   }
 
+  .live-layout:has(.segmented.small button:last-child.active) > main > .team-status {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
   .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card {
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 3;
   }
 
   .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .sides {
@@ -325,17 +365,17 @@
 
   .live-layout:has(.segmented.small button:last-child.active) > main > .recommendation {
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 3;
   }
 
   .live-layout:has(.segmented.small button:last-child.active) > main > .follow-up-panel {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 4;
   }
 
   .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel {
     grid-column: 2;
-    grid-row: 3;
+    grid-row: 4;
   }
 
   .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .action-confirm-row {
@@ -356,7 +396,7 @@
 
   .live-layout:has(.segmented.small button:last-child.active) > main > .analysis {
     grid-column: 1 / -1;
-    grid-row: 4;
+    grid-row: 5;
   }
 }
 

@@ -11,6 +11,9 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "96kb" }));
 
+const AI_TIMEOUT_MS = Math.max(5_000, Number(process.env.AI_TIMEOUT_MS) || 20_000);
+async function withTimeout<T>(request: Promise<T>, provider: string) { let timer: ReturnType<typeof setTimeout> | undefined; const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${provider} request timed out after ${Math.round(AI_TIMEOUT_MS / 1000)} seconds.`)), AI_TIMEOUT_MS); }); try { return await Promise.race([request, timeout]); } finally { if (timer) clearTimeout(timer); } }
+
 const recommendationInput = z.object({
   format: z.enum(["Singles", "Doubles"]),
   turn: z.record(z.string(), z.unknown()),
@@ -66,14 +69,15 @@ async function authenticated(token: string | undefined) {
 }
 
 const geminiQuotaError = (error: unknown) => /quota|resource.?exhausted|429/i.test(error instanceof Error ? error.message : String(error));
+const providerFallbackError = (error: unknown) => /timed?\s*out|timeout|abort|fetch failed|network|econn|socket|502|503|504/i.test(error instanceof Error ? error.message : String(error));
 
 async function geminiStructured(prompt: string, schema: object) {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const interaction = await ai.interactions.create({
+  const interaction = await withTimeout(ai.interactions.create({
     model: process.env.GEMINI_MODEL || "gemini-3.5-flash",
     input: prompt,
     response_format: { type: "text", mime_type: "application/json", schema },
-  });
+  }), "Gemini");
   if (!interaction.output_text) throw new Error("Gemini returned an empty response.");
   return JSON.parse(interaction.output_text) as unknown;
 }
@@ -82,6 +86,7 @@ async function groqCompletion(prompt: string, schema?: object) {
   if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured on the server.");
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
@@ -99,25 +104,25 @@ async function groqCompletion(prompt: string, schema?: object) {
 
 async function generateStructured(prompt: string, schema: object) {
   if (process.env.GEMINI_API_KEY) {
-    try { return await geminiStructured(prompt, schema); }
-    catch (error) { if (!process.env.GROQ_API_KEY || !geminiQuotaError(error)) throw error; }
+    try { return { value: await geminiStructured(prompt, schema), provider: "Gemini" as const }; }
+    catch (error) { if (!process.env.GROQ_API_KEY || (!geminiQuotaError(error) && !providerFallbackError(error))) throw error; }
   }
-  return JSON.parse(await groqCompletion(prompt, schema)) as unknown;
+  return { value: JSON.parse(await groqCompletion(prompt, schema)) as unknown, provider: "Groq fallback" as const };
 }
 
 async function geminiText(prompt: string) {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const interaction = await ai.interactions.create({ model: process.env.GEMINI_MODEL || "gemini-3.5-flash", input: prompt });
+  const interaction = await withTimeout(ai.interactions.create({ model: process.env.GEMINI_MODEL || "gemini-3.5-flash", input: prompt }), "Gemini");
   if (!interaction.output_text) throw new Error("Gemini returned an empty response.");
   return interaction.output_text.trim();
 }
 
 async function generateText(prompt: string) {
   if (process.env.GEMINI_API_KEY) {
-    try { return await geminiText(prompt); }
-    catch (error) { if (!process.env.GROQ_API_KEY || !geminiQuotaError(error)) throw error; }
+    try { return { value: await geminiText(prompt), provider: "Gemini" as const }; }
+    catch (error) { if (!process.env.GROQ_API_KEY || (!geminiQuotaError(error) && !providerFallbackError(error))) throw error; }
   }
-  return groqCompletion(prompt);
+  return { value: await groqCompletion(prompt), provider: "Groq fallback" as const };
 }
 
 function modelError(error: unknown, fallback: string) {
@@ -125,8 +130,12 @@ function modelError(error: unknown, fallback: string) {
   if (/Groq request failed.*401|GROQ_API_KEY/i.test(message)) return "Groq rejected the fallback API key. Check GROQ_API_KEY in .env.";
   if (/api.?key|permission|unauth/i.test(message)) return "Gemini rejected the API key. Check GEMINI_API_KEY in .env.";
   if (/quota|resource.?exhausted|429/i.test(message)) return "All configured AI providers are currently rate-limited. Try again later.";
+  if (/timed?\s*out|timeout|abort/i.test(message)) return "The AI providers took too long to respond. Try the recommendation again.";
   return message;
 }
+
+type GeneratedRecommendation = { actions: Array<{ pokemon: string; action: string; target: string }>; reason: string; risk: string; next: string; preservation: string; assumptions: string[] };
+function sanitizeRecommendation(value: unknown, turn: Record<string, unknown>) { const recommendation = value as GeneratedRecommendation; const active = Array.isArray(turn.myActive) ? turn.myActive.map((entry) => String((entry as { name?: unknown }).name ?? "").trim()).filter(Boolean) : []; const statuses = Array.isArray(turn.teamStatus) ? turn.teamStatus as Array<{ name?: unknown; state?: unknown }> : []; const bench = statuses.filter((entry) => entry.state === "Bench").map((entry) => String(entry.name ?? "").trim()).filter(Boolean); const claimed = new Set<string>(); return { ...recommendation, actions: recommendation.actions.map((entry) => { if (!/\bswitch\b/i.test(entry.action)) return entry; const requested = String(entry.target || "").trim(); const invalidTarget = !requested || /^self$/i.test(requested) || claimed.has(requested.toLowerCase()) || active.some((name) => name.toLowerCase() === requested.toLowerCase()); const replacement = invalidTarget ? bench.find((name) => !claimed.has(name.toLowerCase())) : requested; if (replacement) claimed.add(replacement.toLowerCase()); return { ...entry, action: "Switch", target: replacement || "Choose a bench Pokémon" }; }) }; }
 
 app.post("/api/recommend", async (req, res) => {
   if (!(await authenticated(req.headers.authorization))) return res.status(401).json({ error: "Sign in before requesting an AI recommendation." });
@@ -135,11 +144,11 @@ app.post("/api/recommend", async (req, res) => {
   if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) return res.status(503).json({ error: "No AI provider is configured on the server." });
 
   try {
-  const value = await generateStructured(`You are a fast, conservative competitive Pokémon battle adviser. The user has only 45 seconds. Put the exact move or switch and target first. The entire visible response must be readable in 30–45 seconds and stay under 75 words total: reason at most 18 words; risk at most 12; preservation at most 10; next at most 10; at most 3 assumptions of 8 words each. Do not repeat the action in the prose. The local analysis contains estimates, not authoritative calculator results. Follow the six checks in order: knockout, order, restrictions, targeting danger, preservation, safest winning action. User-entered moves and set details are authoritative. If a needed move or set detail is missing, infer only when necessary, list it in assumptions, and never present it as confirmed. Never invent mechanics, damage numbers, or certainty. Prefer the lowest-risk line that advances the game. If the question says a Pokémon fainted, choose the safest replacement from the entered bench and name it as the action; do not recommend a move for the fainted Pokémon. For Doubles return exactly two actions when two allied Pokémon are active; otherwise return one.
+  const result = await generateStructured(`You are a fast, conservative competitive Pokémon battle adviser. The user has only 45 seconds. Put the exact move or switch and target first. The entire visible response must be readable in 30–45 seconds and stay under 75 words total: reason at most 18 words; risk at most 12; preservation at most 10; next at most 10; at most 3 assumptions of 8 words each. Do not repeat the action in the prose. The local analysis contains estimates, not authoritative calculator results. Follow the six checks in order: knockout, order, restrictions, targeting danger, preservation, safest winning action. User-entered moves and set details are authoritative. If a needed move or set detail is missing, infer only when necessary, list it in assumptions, and never present it as confirmed. Never invent mechanics, damage numbers, or certainty. Prefer the lowest-risk line that advances the game. For a switch, action must be exactly "Switch" and target must be the replacement Pokémon from the bench. Never target self, never switch a Pokémon into itself, and never choose another currently active Pokémon as the replacement. If the question says a Pokémon fainted, choose the safest replacement from the entered bench and return action "Switch" with that replacement in target; do not recommend a move for the fainted Pokémon. For Doubles return exactly two actions when two allied Pokémon are active; otherwise return one.
 
 Battle state:
 ${JSON.stringify(parsed.data)}`, recommendationSchema);
-    return res.json(value);
+    return res.json({ ...sanitizeRecommendation(result.value, parsed.data.turn), provider: result.provider });
   } catch (error) {
     return res.status(502).json({ error: modelError(error, "Recommendation failed.") });
   }
@@ -154,13 +163,14 @@ app.post("/api/team-preview", async (req, res) => {
   if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) return res.status(503).json({ error: "No AI provider is configured on the server." });
 
   try {
-    const value = await generateStructured(`You are a competitive Pokémon team-preview adviser. Choose exactly ${bringCount} Pokémon from the user's saved roster for ${parsed.data.format}. For Singles, order them Lead, Second, Last. For Doubles, order them Lead 1, Lead 2, Back 1, Back 2. Use supplied moves, items, abilities, and notes as authoritative. When information is missing, infer a plausible common legal role or move set, but put every inference in assumedMoves and assumptions. Never claim an assumed move is confirmed. Use exact roster Pokémon names so the app can apply the selection. The entire visible recommendation must be readable in 30–60 seconds: keep gamePlan under 50 words, return at most 3 matchupNotes of at most 14 words each, keep roles under 5 words, and avoid repeating information between fields.
+    const result = await generateStructured(`You are a competitive Pokémon team-preview adviser. Choose exactly ${bringCount} Pokémon from the user's saved roster for ${parsed.data.format}. For Singles, order them Lead, Second, Last. For Doubles, order them Lead 1, Lead 2, Back 1, Back 2. Use supplied moves, items, abilities, and notes as authoritative. When information is missing, infer a plausible common legal role or move set, but put every inference in assumedMoves and assumptions. Never claim an assumed move is confirmed. Use exact roster Pokémon names so the app can apply the selection. The entire visible recommendation must be readable in 30–60 seconds: keep gamePlan under 50 words, return at most 3 matchupNotes of at most 14 words each, keep roles under 5 words, and avoid repeating information between fields.
 
 Match preview:
-${JSON.stringify(parsed.data)}`, teamPreviewSchema) as { selected?: unknown[]; leads?: unknown[] };
+${JSON.stringify(parsed.data)}`, teamPreviewSchema);
+    const value = result.value as { selected?: unknown[]; leads?: unknown[] };
     if (value.selected?.length !== bringCount) throw new Error(`The model did not return exactly ${bringCount} selections.`);
     if (value.leads?.length !== (parsed.data.format === "Singles" ? 1 : 2)) throw new Error("The model returned the wrong number of leads.");
-    return res.json(value);
+    return res.json({ ...value, provider: result.provider });
   } catch (error) {
     return res.status(502).json({ error: modelError(error, "Team recommendation failed.") });
   }
@@ -171,8 +181,8 @@ app.post("/api/follow-up", async (req, res) => {
   const parsed = followUpInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Enter a short follow-up question first." });
   try {
-    const reply = await generateText(`You are a concise competitive Pokémon battle adviser answering a follow-up during a 45-second live timer. Treat the supplied recommendation as context, not as a move the user definitely used. Answer directly in at most 35 words. Lead with the exact move, target, switch, or replacement. State at most one necessary assumption.\n\nRecommendation:\n${JSON.stringify(parsed.data.recommendation)}\n\nFollow-up:\n${parsed.data.message}`);
-    return res.json({ reply });
+    const result = await generateText(`You are a concise competitive Pokémon battle adviser answering a follow-up during a 45-second live timer. Treat the supplied recommendation as context, not as a move the user definitely used. Answer directly in at most 35 words. Lead with the exact move, target, switch, or replacement. State at most one necessary assumption.\n\nRecommendation:\n${JSON.stringify(parsed.data.recommendation)}\n\nFollow-up:\n${parsed.data.message}`);
+    return res.json({ reply: result.value, provider: result.provider });
   } catch (error) {
     return res.status(502).json({ error: modelError(error, "Follow-up failed.") });
   }

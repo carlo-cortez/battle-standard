@@ -19,7 +19,7 @@ export function useBattleStore(user: User | null) {
 
   const run = useCallback(async (task: () => Promise<void>) => { setSyncState(user ? "syncing" : "local"); try { await task(); setSyncState(user ? "synced" : "local"); } catch { setSyncState("error"); } }, [user]);
   const team = teams[match.format];
-  const setTeam = (next: PokemonBuild[]) => { const updated = { ...teams, [match.format]: next }; setTeamsState(updated); void run(() => saveTeam(updated, user)); };
+  const setTeam = (next: PokemonBuild[]) => { const updated = { ...teams, [match.format]: next }; const nextMatch = match.preview ? { ...match, preview: undefined } : match; setTeamsState(updated); if (match.preview) setMatchState(nextMatch); void run(async () => { await saveTeam(updated, user); if (match.preview) await saveMatch(nextMatch, user); }); };
   const setMatch = (next: MatchSetupState) => { setMatchState(next); void run(() => saveMatch(next, user)); };
   const setTurn = (next: TurnState) => {
     turnVersion.current += 1;
