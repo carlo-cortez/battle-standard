@@ -5,15 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"tsx watch server/index.ts\"",
+    "dev:client": "vite",
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "check": "tsc -b --pretty false && vitest run",
     "generate:pokemon-data": "tsx scripts/generate-pokemon-data.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.57.4",
     "@google/genai": "^2.11.0",
+    "@supabase/supabase-js": "2.57.4",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "react": "^19.1.1",
@@ -21,6 +24,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/express": "^5.0.3",
     "@types/node": "^24.6.0",
     "@types/react": "^19.1.16",

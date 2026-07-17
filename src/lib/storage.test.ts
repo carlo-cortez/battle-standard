@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createTurn } from "./factories";
-import { selectNewestTurn } from "./storage";
+import { normalizeTurn, selectNewestTurn } from "./storage";
 
 describe("turn synchronization", () => {
   it("keeps the newer local active Pokémon when an older cloud turn arrives", () => {
@@ -15,5 +15,13 @@ describe("turn synchronization", () => {
     const remote = { ...createTurn(), updatedAt: "2026-07-15T12:01:00.000Z", turn: 4 };
 
     expect(selectNewestTurn(local, remote)?.turn).toBe(4);
+  });
+
+  it("loads legacy turns without persisting the old emergency mode", () => {
+    const current = createTurn();
+    const legacy = { ...current, emergency: false };
+
+    expect(normalizeTurn(legacy)).toEqual(current);
+    expect(normalizeTurn(legacy)).not.toHaveProperty("emergency");
   });
 });

@@ -11,7 +11,7 @@ export const createMatch = (): MatchSetupState => ({
 const active = (): ActivePokemon => ({ name: "", hp: 100, currentHp: 100, maxHp: 100, status: "", moves: ["", "", "", ""] });
 
 export const createTurn = (): TurnState => ({
-  id: crypto.randomUUID(), updatedAt: new Date().toISOString(), turn: 1, emergency: true,
+  id: crypto.randomUUID(), updatedAt: new Date().toISOString(), turn: 1,
   myActive: [active(), active()], opponentActive: [active(), active()],
   teamStatus: [],
   bench: "", weather: "", field: "",

@@ -230,26 +230,26 @@
     gap: 14px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) {
+  .live-layout.compact-battle {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main {
+  .live-layout.compact-battle > main {
     width: min(100%, 1120px);
     margin-inline: auto;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > aside {
+  .live-layout.compact-battle > aside {
     display: none;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .recommendation dl {
+  .live-layout.compact-battle .recommendation dl {
     display: grid;
     grid-template-columns: 1fr 1fr;
     column-gap: 18px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .recommendation dl > div {
+  .live-layout.compact-battle .recommendation dl > div {
     min-width: 0;
   }
 
@@ -257,59 +257,59 @@
     padding-top: 24px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .turn-card {
+  .live-layout.compact-battle .turn-card {
     padding: 14px 16px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .sides {
+  .live-layout.compact-battle .sides {
     margin-bottom: 5px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .active-row {
+  .live-layout.compact-battle .active-row {
     margin-top: 4px;
     gap: 5px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .active-row > input,
-  .live-layout:has(.segmented.small button:last-child.active) .hp-input input,
-  .live-layout:has(.segmented.small button:last-child.active) .exact-hp input {
+  .live-layout.compact-battle .active-row > input,
+  .live-layout.compact-battle .hp-input input,
+  .live-layout.compact-battle .exact-hp input {
     padding-top: 8px;
     padding-bottom: 8px;
     font-size: 12px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .hp-steps button,
-  .live-layout:has(.segmented.small button:last-child.active) .move-taps button {
+  .live-layout.compact-battle .hp-steps button,
+  .live-layout.compact-battle .move-taps button {
     padding: 4px 7px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .move-taps {
+  .live-layout.compact-battle .move-taps {
     margin-top: -1px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .turn-card > .field {
+  .live-layout.compact-battle .turn-card > .field {
     margin: 6px 0;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .turn-card > .field input {
+  .live-layout.compact-battle .turn-card > .field input {
     padding: 8px 10px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .quick-picks button {
+  .live-layout.compact-battle .quick-picks button {
     padding: 4px 8px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .submit-row {
+  .live-layout.compact-battle .submit-row {
     margin-top: 6px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) .submit-row .button {
+  .live-layout.compact-battle .submit-row .button {
     padding: 8px 12px;
   }
 }
 
 @media (min-width: 1050px) {
-  .live-layout:has(.segmented.small button:last-child.active) > main {
+  .live-layout.compact-battle > main {
     width: min(100%, 1450px);
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -317,7 +317,7 @@
     align-items: start;
   }
 
-  .live-layout:not(.is-loading):has(.segmented.small button:last-child.active) > main:not(:has(> .recommendation))::before {
+  .live-layout.compact-battle:not(.is-loading) > main:not(:has(> .recommendation))::before {
     content: "Your recommendation appears here.\A\AAdd the current battle state, then choose Get recommendation.";
     white-space: pre-line;
     grid-column: 2;
@@ -334,85 +334,85 @@
     background: linear-gradient(145deg, #191c12, #11140e);
   }
 
-  .live-layout.is-loading:has(.segmented.small button:last-child.active) > main::after {
+  .live-layout.compact-battle.is-loading > main::after {
     grid-column: 2;
     grid-row: 3;
     min-height: 100%;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .live-head {
+  .live-layout.compact-battle > main > .live-head {
     grid-column: 1 / -1;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .team-status {
+  .live-layout.compact-battle > main > .team-status {
     grid-column: 1 / -1;
     grid-row: 2;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card {
+  .live-layout.compact-battle > main > .turn-card {
     grid-column: 1;
     grid-row: 3;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .sides {
+  .live-layout.compact-battle > main > .turn-card .sides {
     grid-template-columns: 1fr;
     gap: 9px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .versus {
+  .live-layout.compact-battle > main > .turn-card .versus {
     display: none;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .mine .active-row {
+  .live-layout.compact-battle > main > .turn-card .mine .active-row {
     grid-template-columns: minmax(150px, 1fr) 154px auto;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .theirs .active-row {
+  .live-layout.compact-battle > main > .turn-card .theirs .active-row {
     grid-template-columns: minmax(150px, 1fr) 92px auto;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .exact-hp input {
+  .live-layout.compact-battle > main > .turn-card .exact-hp input {
     min-width: 64px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .theirs .hp-input,
-  .live-layout:has(.segmented.small button:last-child.active) > main > .turn-card .theirs .hp-input input {
+  .live-layout.compact-battle > main > .turn-card .theirs .hp-input,
+  .live-layout.compact-battle > main > .turn-card .theirs .hp-input input {
     min-width: 92px;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .recommendation {
+  .live-layout.compact-battle > main > .recommendation {
     grid-column: 2;
     grid-row: 3;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .follow-up-panel {
+  .live-layout.compact-battle > main > .follow-up-panel {
     grid-column: 1;
     grid-row: 4;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel {
+  .live-layout.compact-battle > main > .confirmation-panel {
     grid-column: 2;
     grid-row: 4;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .action-confirm-row {
+  .live-layout.compact-battle > main > .confirmation-panel .action-confirm-row {
     grid-template-columns: 1fr;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .action-choice-row {
+  .live-layout.compact-battle > main > .confirmation-panel .action-choice-row {
     flex-wrap: wrap;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .confirm-move-grid {
+  .live-layout.compact-battle > main > .confirmation-panel .confirm-move-grid {
     flex-basis: 100%;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .action-confirm-row > input,
-  .live-layout:has(.segmented.small button:last-child.active) > main > .confirmation-panel .replacement-follow-up {
+  .live-layout.compact-battle > main > .confirmation-panel .action-confirm-row > input,
+  .live-layout.compact-battle > main > .confirmation-panel .replacement-follow-up {
     grid-column: 1;
   }
 
-  .live-layout:has(.segmented.small button:last-child.active) > main > .analysis {
+  .live-layout.compact-battle > main > .analysis {
     grid-column: 1 / -1;
     grid-row: 5;
   }
@@ -420,7 +420,4 @@
 
 @media (max-width: 800px) {
   .follow-up-head small { display: none; }
-}
-.compact-mode-marker {
-  display: none !important;
 }

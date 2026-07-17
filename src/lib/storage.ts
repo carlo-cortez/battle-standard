@@ -6,6 +6,12 @@ const keys = { team: "battle-standard:team", match: "battle-standard:match", tur
 const read = <T>(key: string, fallback: T): T => { try { return JSON.parse(localStorage.getItem(key) || "") as T; } catch { return fallback; } };
 const write = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
 const asTeamSets = (value: PokemonBuild[] | TeamSets | null | undefined): TeamSets => Array.isArray(value) ? { Singles: value, Doubles: [] } : { Singles: value?.Singles ?? [], Doubles: value?.Doubles ?? [] };
+type LegacyTurnState = TurnState & { emergency?: boolean };
+export const normalizeTurn = (value: LegacyTurnState | null): TurnState | null => {
+  if (!value) return null;
+  const { emergency: _legacyEmergency, ...turn } = value;
+  return turn;
+};
 
 const userId = (user: User | null) => { if (!user) throw new Error("Sign in to sync across devices."); return user.id; };
 const turnTimestamp = (turn: TurnState | null) => turn?.updatedAt ? Date.parse(turn.updatedAt) || 0 : 0;
@@ -14,7 +20,7 @@ export const selectNewestTurn = (local: TurnState | null, remote: TurnState | nu
 export const localStore = {
   loadTeam: () => asTeamSets(read<PokemonBuild[] | TeamSets>(keys.team, [])), saveTeam: (teams: TeamSets) => write(keys.team, teams),
   loadMatch: () => read<MatchSetupState | null>(keys.match, null), saveMatch: (match: MatchSetupState) => write(keys.match, match),
-  loadTurn: () => read<TurnState | null>(keys.turn, null), saveTurn: (turn: TurnState) => write(keys.turn, turn),
+  loadTurn: () => normalizeTurn(read<LegacyTurnState | null>(keys.turn, null)), saveTurn: (turn: TurnState) => write(keys.turn, turn),
   loadRecords: () => read<BattleRecord[]>(keys.records, []), saveRecords: (records: BattleRecord[]) => write(keys.records, records),
 };
 
@@ -41,7 +47,7 @@ export async function loadTurn(user: User | null, matchId?: string): Promise<Tur
   const local = localStore.loadTurn();
   const { data, error } = await supabase.from("battle_turns").select("data,synced_at").eq("user_id", user.id).eq("match_id", matchId).order("turn_number", { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;
-  const remoteData = data?.data as TurnState | undefined; const remote = remoteData ? { ...remoteData, updatedAt: remoteData.updatedAt ?? data?.synced_at ?? undefined } : null;
+  const remoteData = normalizeTurn((data?.data as LegacyTurnState | undefined) ?? null); const remote = remoteData ? { ...remoteData, updatedAt: remoteData.updatedAt ?? data?.synced_at ?? undefined } : null;
   const value = selectNewestTurn(local, remote);
   if (value) localStore.saveTurn(value); return value;
 }

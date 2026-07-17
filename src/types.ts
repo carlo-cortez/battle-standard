@@ -66,7 +66,6 @@ export interface TurnState {
   id: string;
   updatedAt?: string;
   turn: number;
-  emergency: boolean;
   myActive: ActivePokemon[];
   opponentActive: ActivePokemon[];
   teamStatus?: TeamStatusEntry[];

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { isRateLimitError, isRecoverableProviderError, shouldFallbackToGemini, shouldForceGeminiFallback } from "./providerPolicy.js";
 
 const app = express();
 app.disable("x-powered-by");
@@ -68,9 +69,6 @@ async function authenticated(token: string | undefined) {
   return !error && Boolean(data.user);
 }
 
-const geminiQuotaError = (error: unknown) => /quota|resource.?exhausted|429/i.test(error instanceof Error ? error.message : String(error));
-const providerFallbackError = (error: unknown) => /timed?\s*out|timeout|abort|fetch failed|network|econn|socket|502|503|504/i.test(error instanceof Error ? error.message : String(error));
-
 async function geminiStructured(prompt: string, schema: object) {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const interaction = await withTimeout(ai.interactions.create({
@@ -103,9 +101,9 @@ async function groqCompletion(prompt: string, schema?: object) {
 }
 
 async function generateStructured(prompt: string, schema: object) {
-  if (process.env.GROQ_API_KEY) {
+  if (process.env.GROQ_API_KEY && !shouldForceGeminiFallback(process.env)) {
     try { return { value: JSON.parse(await groqCompletion(prompt, schema)) as unknown, provider: "Groq" as const }; }
-    catch (error) { if (!process.env.GEMINI_API_KEY || (!geminiQuotaError(error) && !providerFallbackError(error))) throw error; }
+    catch (error) { if (!shouldFallbackToGemini(error, Boolean(process.env.GEMINI_API_KEY))) throw error; }
   }
   return { value: await geminiStructured(prompt, schema), provider: process.env.GROQ_API_KEY ? "Gemini fallback" as const : "Gemini" as const };
 }
@@ -118,19 +116,20 @@ async function geminiText(prompt: string) {
 }
 
 async function generateText(prompt: string) {
-  if (process.env.GROQ_API_KEY) {
+  if (process.env.GROQ_API_KEY && !shouldForceGeminiFallback(process.env)) {
     try { return { value: await groqCompletion(prompt), provider: "Groq" as const }; }
-    catch (error) { if (!process.env.GEMINI_API_KEY || (!geminiQuotaError(error) && !providerFallbackError(error))) throw error; }
+    catch (error) { if (!shouldFallbackToGemini(error, Boolean(process.env.GEMINI_API_KEY))) throw error; }
   }
   return { value: await geminiText(prompt), provider: process.env.GROQ_API_KEY ? "Gemini fallback" as const : "Gemini" as const };
 }
 
 function modelError(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : fallback;
-  if (/Groq request failed.*401|GROQ_API_KEY/i.test(message)) return "Groq rejected the fallback API key. Check GROQ_API_KEY in .env.";
+  if (/Groq request failed.*401|GROQ_API_KEY/i.test(message)) return "Groq rejected the API key. Check GROQ_API_KEY in .env.";
   if (/api.?key|permission|unauth/i.test(message)) return "Gemini rejected the API key. Check GEMINI_API_KEY in .env.";
-  if (/quota|resource.?exhausted|rate.?limit|429/i.test(message)) return "All configured AI providers are currently rate-limited. Try again later.";
-  if (/timed?\s*out|timeout|abort/i.test(message)) return "The AI providers took too long to respond. Try the recommendation again.";
+  if (isRateLimitError(error)) return "All configured AI providers are currently rate-limited. Try again later.";
+  if (/failed_generation|generated json|jsonschema|expected schema|does not (?:match|validate)/i.test(message)) return "The AI could not produce a valid structured recommendation. Try again.";
+  if (isRecoverableProviderError(error)) return "The AI providers took too long to respond. Try the recommendation again.";
   return message;
 }
 
