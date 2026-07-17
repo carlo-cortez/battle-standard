@@ -11,7 +11,7 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "96kb" }));
 
-const AI_TIMEOUT_MS = Math.max(5_000, Number(process.env.AI_TIMEOUT_MS) || 20_000);
+const AI_TIMEOUT_MS = Math.max(3_000, Number(process.env.AI_TIMEOUT_MS) || 6_000);
 async function withTimeout<T>(request: Promise<T>, provider: string) { let timer: ReturnType<typeof setTimeout> | undefined; const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${provider} request timed out after ${Math.round(AI_TIMEOUT_MS / 1000)} seconds.`)), AI_TIMEOUT_MS); }); try { return await Promise.race([request, timeout]); } finally { if (timer) clearTimeout(timer); } }
 
 const recommendationInput = z.object({
@@ -24,11 +24,11 @@ const recommendationInput = z.object({
 const recommendationSchema = {
   type: "object", additionalProperties: false,
   properties: {
-    actions: { type: "array", minItems: 1, maxItems: 2, items: { type: "object", additionalProperties: false, properties: {
-      pokemon: { type: "string", maxLength: 40 }, action: { type: "string", maxLength: 70 }, target: { type: "string", maxLength: 40 },
+    actions: { type: "array", items: { type: "object", additionalProperties: false, properties: {
+      pokemon: { type: "string" }, action: { type: "string" }, target: { type: "string" },
     }, required: ["pokemon", "action", "target"] } },
-    reason: { type: "string", maxLength: 140 }, risk: { type: "string", maxLength: 110 }, next: { type: "string", maxLength: 100 }, preservation: { type: "string", maxLength: 100 },
-    assumptions: { type: "array", maxItems: 3, items: { type: "string", maxLength: 90 } },
+    reason: { type: "string" }, risk: { type: "string" }, next: { type: "string" }, preservation: { type: "string" },
+    assumptions: { type: "array", items: { type: "string" } },
   }, required: ["actions", "reason", "risk", "next", "preservation", "assumptions"],
 } as const;
 
@@ -49,13 +49,13 @@ const followUpInput = z.object({
 const teamPreviewSchema = {
   type: "object", additionalProperties: false,
   properties: {
-    selected: { type: "array", minItems: 1, maxItems: 4, items: { type: "object", additionalProperties: false, properties: {
-      name: { type: "string" }, position: { type: "string" }, role: { type: "string" }, assumedMoves: { type: "array", items: { type: "string" }, maxItems: 4 },
+    selected: { type: "array", items: { type: "object", additionalProperties: false, properties: {
+      name: { type: "string" }, position: { type: "string" }, role: { type: "string" }, assumedMoves: { type: "array", items: { type: "string" } },
     }, required: ["name", "position", "role", "assumedMoves"] } },
-    leads: { type: "array", minItems: 1, maxItems: 2, items: { type: "string" } },
-    gamePlan: { type: "string", maxLength: 350 },
-    matchupNotes: { type: "array", minItems: 1, maxItems: 3, items: { type: "string", maxLength: 120 } },
-    assumptions: { type: "array", maxItems: 5, items: { type: "string", maxLength: 100 } },
+    leads: { type: "array", items: { type: "string" } },
+    gamePlan: { type: "string" },
+    matchupNotes: { type: "array", items: { type: "string" } },
+    assumptions: { type: "array", items: { type: "string" } },
   }, required: ["selected", "leads", "gamePlan", "matchupNotes", "assumptions"],
 } as const;
 
@@ -103,11 +103,11 @@ async function groqCompletion(prompt: string, schema?: object) {
 }
 
 async function generateStructured(prompt: string, schema: object) {
-  if (process.env.GEMINI_API_KEY) {
-    try { return { value: await geminiStructured(prompt, schema), provider: "Gemini" as const }; }
-    catch (error) { if (!process.env.GROQ_API_KEY || (!geminiQuotaError(error) && !providerFallbackError(error))) throw error; }
+  if (process.env.GROQ_API_KEY) {
+    try { return { value: JSON.parse(await groqCompletion(prompt, schema)) as unknown, provider: "Groq" as const }; }
+    catch (error) { if (!process.env.GEMINI_API_KEY || (!geminiQuotaError(error) && !providerFallbackError(error))) throw error; }
   }
-  return { value: JSON.parse(await groqCompletion(prompt, schema)) as unknown, provider: "Groq fallback" as const };
+  return { value: await geminiStructured(prompt, schema), provider: process.env.GROQ_API_KEY ? "Gemini fallback" as const : "Gemini" as const };
 }
 
 async function geminiText(prompt: string) {
@@ -118,24 +118,51 @@ async function geminiText(prompt: string) {
 }
 
 async function generateText(prompt: string) {
-  if (process.env.GEMINI_API_KEY) {
-    try { return { value: await geminiText(prompt), provider: "Gemini" as const }; }
-    catch (error) { if (!process.env.GROQ_API_KEY || (!geminiQuotaError(error) && !providerFallbackError(error))) throw error; }
+  if (process.env.GROQ_API_KEY) {
+    try { return { value: await groqCompletion(prompt), provider: "Groq" as const }; }
+    catch (error) { if (!process.env.GEMINI_API_KEY || (!geminiQuotaError(error) && !providerFallbackError(error))) throw error; }
   }
-  return { value: await groqCompletion(prompt), provider: "Groq fallback" as const };
+  return { value: await geminiText(prompt), provider: process.env.GROQ_API_KEY ? "Gemini fallback" as const : "Gemini" as const };
 }
 
 function modelError(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : fallback;
   if (/Groq request failed.*401|GROQ_API_KEY/i.test(message)) return "Groq rejected the fallback API key. Check GROQ_API_KEY in .env.";
   if (/api.?key|permission|unauth/i.test(message)) return "Gemini rejected the API key. Check GEMINI_API_KEY in .env.";
-  if (/quota|resource.?exhausted|429/i.test(message)) return "All configured AI providers are currently rate-limited. Try again later.";
+  if (/quota|resource.?exhausted|rate.?limit|429/i.test(message)) return "All configured AI providers are currently rate-limited. Try again later.";
   if (/timed?\s*out|timeout|abort/i.test(message)) return "The AI providers took too long to respond. Try the recommendation again.";
   return message;
 }
 
 type GeneratedRecommendation = { actions: Array<{ pokemon: string; action: string; target: string }>; reason: string; risk: string; next: string; preservation: string; assumptions: string[] };
-function sanitizeRecommendation(value: unknown, turn: Record<string, unknown>) { const recommendation = value as GeneratedRecommendation; const active = Array.isArray(turn.myActive) ? turn.myActive.map((entry) => String((entry as { name?: unknown }).name ?? "").trim()).filter(Boolean) : []; const statuses = Array.isArray(turn.teamStatus) ? turn.teamStatus as Array<{ name?: unknown; state?: unknown }> : []; const bench = statuses.filter((entry) => entry.state === "Bench").map((entry) => String(entry.name ?? "").trim()).filter(Boolean); const claimed = new Set<string>(); return { ...recommendation, actions: recommendation.actions.map((entry) => { if (!/\bswitch\b/i.test(entry.action)) return entry; const requested = String(entry.target || "").trim(); const invalidTarget = !requested || /^self$/i.test(requested) || claimed.has(requested.toLowerCase()) || active.some((name) => name.toLowerCase() === requested.toLowerCase()); const replacement = invalidTarget ? bench.find((name) => !claimed.has(name.toLowerCase())) : requested; if (replacement) claimed.add(replacement.toLowerCase()); return { ...entry, action: "Switch", target: replacement || "Choose a bench Pokémon" }; }) }; }
+const clipped = (value: unknown, maxLength: number) => {
+  const text = String(value ?? "").trim();
+  if (text.length <= maxLength) return text;
+  const shortened = text.slice(0, Math.max(1, maxLength - 1));
+  const wordBoundary = shortened.lastIndexOf(" ");
+  return `${(wordBoundary > maxLength * 0.6 ? shortened.slice(0, wordBoundary) : shortened).trimEnd()}…`;
+};
+function sanitizeRecommendation(value: unknown, turn: Record<string, unknown>) {
+  const recommendation = value as GeneratedRecommendation; const normalize = (name: string) => name.toLowerCase().replace(/[\s.'’_-]/g, "");
+  const active = Array.isArray(turn.myActive) ? turn.myActive.map((entry) => String((entry as { name?: unknown }).name ?? "").trim()).filter(Boolean) : [];
+  const asksForReplacement = /fainted|faint|who should i put|replacement/i.test(String(turn.question ?? ""));
+  const scopedActions = asksForReplacement ? recommendation.actions : recommendation.actions.filter((entry) => active.some((name) => normalize(name) === normalize(entry.pokemon))).slice(0, active.length);
+  const statuses = Array.isArray(turn.teamStatus) ? turn.teamStatus as Array<{ name?: unknown; state?: unknown }> : []; const bench = statuses.filter((entry) => entry.state === "Bench").map((entry) => String(entry.name ?? "").trim()).filter(Boolean); const claimed = new Set<string>();
+  return { ...recommendation, reason: clipped(recommendation.reason, 140), risk: clipped(recommendation.risk, 110), next: clipped(recommendation.next, 100), preservation: clipped(recommendation.preservation, 100), assumptions: recommendation.assumptions.slice(0, 3).map((entry) => clipped(entry, 90)), actions: scopedActions.map((entry) => { const safe = { pokemon: clipped(entry.pokemon, 40), action: clipped(entry.action, 70), target: clipped(entry.target, 40) }; if (!/\bswitch\b/i.test(safe.action)) return safe; const requested = safe.target.trim(); const invalidTarget = !requested || /^self$/i.test(requested) || claimed.has(normalize(requested)) || active.some((name) => normalize(name) === normalize(requested)); const replacement = invalidTarget ? bench.find((name) => !claimed.has(normalize(name))) : requested; if (replacement) claimed.add(normalize(replacement)); return { ...safe, action: "Switch", target: replacement || "Choose a bench Pokémon" }; }) };
+}
+
+type GeneratedTeamPreview = { selected: Array<{ name: string; position: string; role: string; assumedMoves: string[] }>; leads: string[]; gamePlan: string; matchupNotes: string[]; assumptions: string[] };
+function sanitizeTeamPreview(value: unknown, bringCount: number, leadCount: number) {
+  const preview = value as GeneratedTeamPreview;
+  return {
+    ...preview,
+    selected: preview.selected.slice(0, bringCount).map((choice) => ({ ...choice, name: clipped(choice.name, 40), position: clipped(choice.position, 20), role: clipped(choice.role, 50), assumedMoves: choice.assumedMoves.slice(0, 4).map((move) => clipped(move, 40)) })),
+    leads: preview.leads.slice(0, leadCount).map((lead) => clipped(lead, 40)),
+    gamePlan: clipped(preview.gamePlan, 350),
+    matchupNotes: preview.matchupNotes.slice(0, 3).map((note) => clipped(note, 120)),
+    assumptions: preview.assumptions.slice(0, 5).map((assumption) => clipped(assumption, 100)),
+  };
+}
 
 app.post("/api/recommend", async (req, res) => {
   if (!(await authenticated(req.headers.authorization))) return res.status(401).json({ error: "Sign in before requesting an AI recommendation." });
@@ -144,7 +171,7 @@ app.post("/api/recommend", async (req, res) => {
   if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) return res.status(503).json({ error: "No AI provider is configured on the server." });
 
   try {
-  const result = await generateStructured(`You are a fast, conservative competitive Pokémon battle adviser. The user has only 45 seconds. Put the exact move or switch and target first. The entire visible response must be readable in 30–45 seconds and stay under 75 words total: reason at most 18 words; risk at most 12; preservation at most 10; next at most 10; at most 3 assumptions of 8 words each. Do not repeat the action in the prose. The local analysis contains estimates, not authoritative calculator results. Follow the six checks in order: knockout, order, restrictions, targeting danger, preservation, safest winning action. User-entered moves and set details are authoritative. If a needed move or set detail is missing, infer only when necessary, list it in assumptions, and never present it as confirmed. Never invent mechanics, damage numbers, or certainty. Prefer the lowest-risk line that advances the game. For a switch, action must be exactly "Switch" and target must be the replacement Pokémon from the bench. Never target self, never switch a Pokémon into itself, and never choose another currently active Pokémon as the replacement. If the question says a Pokémon fainted, choose the safest replacement from the entered bench and return action "Switch" with that replacement in target; do not recommend a move for the fainted Pokémon. For Doubles return exactly two actions when two allied Pokémon are active; otherwise return one.
+  const result = await generateStructured(`You are a fast, conservative competitive Pokémon battle adviser. The user has only 45 seconds. Put the exact move or switch and target first. The entire visible response must be readable in 30–45 seconds and stay under 75 words total: reason at most 18 words; risk at most 12; preservation at most 10; next at most 10; at most 3 assumptions of 8 words each. Do not repeat the action in the prose. The local analysis contains estimates, not authoritative calculator results. Follow the six checks in order: knockout, order, restrictions, targeting danger, preservation, safest winning action. User-entered moves and set details are authoritative. If a needed move or set detail is missing, infer only when necessary, list it in assumptions, and never present it as confirmed. Never invent mechanics, damage numbers, or certainty. Prefer the lowest-risk line that advances the game. Every action's pokemon must exactly match a currently non-empty myActive name, unless the user explicitly asks for a replacement after fainting. Never give an action to a benched, fainted, or blank-slot Pokémon. For a switch, action must be exactly "Switch" and target must be the replacement Pokémon from the bench. Never target self, never switch a Pokémon into itself, and never choose another currently active Pokémon as the replacement. If the question says a Pokémon fainted, choose the safest replacement from the entered bench and return action "Switch" with that replacement in target; do not recommend a move for the fainted Pokémon. For Doubles return exactly two actions when two allied Pokémon are active; otherwise return one.
 
 Battle state:
 ${JSON.stringify(parsed.data)}`, recommendationSchema);
@@ -167,7 +194,7 @@ app.post("/api/team-preview", async (req, res) => {
 
 Match preview:
 ${JSON.stringify(parsed.data)}`, teamPreviewSchema);
-    const value = result.value as { selected?: unknown[]; leads?: unknown[] };
+    const value = sanitizeTeamPreview(result.value, bringCount, parsed.data.format === "Singles" ? 1 : 2);
     if (value.selected?.length !== bringCount) throw new Error(`The model did not return exactly ${bringCount} selections.`);
     if (value.leads?.length !== (parsed.data.format === "Singles" ? 1 : 2)) throw new Error("The model returned the wrong number of leads.");
     return res.json({ ...value, provider: result.provider });

@@ -8,6 +8,8 @@ const write = (key: string, value: unknown) => localStorage.setItem(key, JSON.st
 const asTeamSets = (value: PokemonBuild[] | TeamSets | null | undefined): TeamSets => Array.isArray(value) ? { Singles: value, Doubles: [] } : { Singles: value?.Singles ?? [], Doubles: value?.Doubles ?? [] };
 
 const userId = (user: User | null) => { if (!user) throw new Error("Sign in to sync across devices."); return user.id; };
+const turnTimestamp = (turn: TurnState | null) => turn?.updatedAt ? Date.parse(turn.updatedAt) || 0 : 0;
+export const selectNewestTurn = (local: TurnState | null, remote: TurnState | null) => local && (!remote || turnTimestamp(local) >= turnTimestamp(remote)) ? local : remote;
 
 export const localStore = {
   loadTeam: () => asTeamSets(read<PokemonBuild[] | TeamSets>(keys.team, [])), saveTeam: (teams: TeamSets) => write(keys.team, teams),
@@ -36,8 +38,12 @@ export async function saveMatch(match: MatchSetupState, user: User | null) {
 }
 export async function loadTurn(user: User | null, matchId?: string): Promise<TurnState | null> {
   if (!supabase || !user || !matchId) return localStore.loadTurn();
-  const { data, error } = await supabase.from("battle_turns").select("data").eq("user_id", user.id).eq("match_id", matchId).order("turn_number", { ascending: false }).limit(1).maybeSingle();
-  if (error) throw error; const value = (data?.data as TurnState | undefined) ?? localStore.loadTurn(); if (value) localStore.saveTurn(value); return value;
+  const local = localStore.loadTurn();
+  const { data, error } = await supabase.from("battle_turns").select("data,synced_at").eq("user_id", user.id).eq("match_id", matchId).order("turn_number", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  const remoteData = data?.data as TurnState | undefined; const remote = remoteData ? { ...remoteData, updatedAt: remoteData.updatedAt ?? data?.synced_at ?? undefined } : null;
+  const value = selectNewestTurn(local, remote);
+  if (value) localStore.saveTurn(value); return value;
 }
 export async function saveTurn(turn: TurnState, matchId: string, user: User | null) {
   localStore.saveTurn(turn); if (!supabase || !user) return;
@@ -51,4 +57,8 @@ export async function loadRecords(user: User | null): Promise<BattleRecord[]> {
 export async function saveRecord(record: BattleRecord, user: User | null) {
   const records = [record, ...localStore.loadRecords().filter((entry) => entry.id !== record.id)]; localStore.saveRecords(records); if (!supabase || !user) return;
   const { error } = await supabase.from("battle_history").upsert({ id: record.id, user_id: userId(user), data: record, created_at: record.createdAt }); if (error) throw error;
+}
+export async function deleteRecord(recordId: string, user: User | null) {
+  localStore.saveRecords(localStore.loadRecords().filter((record) => record.id !== recordId)); if (!supabase || !user) return;
+  const { error } = await supabase.from("battle_history").delete().eq("id", recordId).eq("user_id", userId(user)); if (error) throw error;
 }

@@ -24,7 +24,15 @@ export interface MatchSetupState {
   selectedTeam: string[];
   expectedLead: string;
   preview?: TeamPreviewRecommendation;
+  formatDrafts?: Partial<Record<BattleFormat, MatchFormatDraft>>;
   status: "active" | "complete";
+}
+
+export interface MatchFormatDraft {
+  opponentTeam: string;
+  selectedTeam: string[];
+  expectedLead: string;
+  preview?: TeamPreviewRecommendation;
 }
 
 export interface ActivePokemon {
@@ -33,6 +41,7 @@ export interface ActivePokemon {
   currentHp?: number;
   maxHp?: number;
   lastMove?: string;
+  replacement?: string;
   status: string;
   moves: string[];
 }
@@ -55,6 +64,7 @@ export interface TurnRestrictions {
 
 export interface TurnState {
   id: string;
+  updatedAt?: string;
   turn: number;
   emergency: boolean;
   myActive: ActivePokemon[];
@@ -67,6 +77,16 @@ export interface TurnState {
   previousTurn: string;
   question: string;
   recommendation?: Recommendation;
+  turnLog?: BattleTurnEntry[];
+}
+
+export interface BattleTurnEntry {
+  turn: number;
+  actions: string[];
+  myActions?: string[];
+  opponentActions?: string[];
+  myActive: string[];
+  opponentActive: string[];
 }
 
 export interface BattleRecord {
@@ -80,6 +100,12 @@ export interface BattleRecord {
   mainMistake: string;
   whatWorked: string;
   adjustment: string;
+  myTeam?: string;
+  myBrought?: string;
+  opponentBrought?: string;
+  format?: BattleFormat;
+  source?: "Live Battle" | "Manual";
+  turns?: BattleTurnEntry[];
 }
 
 export interface PokemonData {
@@ -119,7 +145,7 @@ export interface LocalAnalysis {
 }
 
 export interface Recommendation {
-  provider?: "Gemini" | "Groq fallback";
+  provider?: "Groq" | "Gemini fallback" | "Gemini" | "Groq fallback";
   actions: Array<{ pokemon: string; action: string; target: string }>;
   reason: string;
   risk: string;
@@ -129,7 +155,7 @@ export interface Recommendation {
 }
 
 export interface TeamPreviewRecommendation {
-  provider?: "Gemini" | "Groq fallback";
+  provider?: "Groq" | "Gemini fallback" | "Gemini" | "Groq fallback";
   selected: Array<{ name: string; position: string; role: string; assumedMoves: string[] }>;
   leads: string[];
   gamePlan: string;

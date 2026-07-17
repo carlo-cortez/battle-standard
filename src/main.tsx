@@ -5,5 +5,6 @@ import "./styles.css";
 import "./features.css";
 import "./match-setup.css";
 import "./live-battle.css";
+import "./pokemon-input.css";
 
 createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictMode>);

@@ -1,0 +1,71 @@
+.pokemon-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.pokemon-combobox.invalid input { border-color: #8a493f; }
+
+/* Once the field itself shows the error, avoid repeating it as a distant card banner. */
+.turn-card:has(.pokemon-combobox.invalid) > .warning:last-child { display: none; }
+
+.pokemon-options {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 230px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid #3a4554;
+  border-radius: 7px;
+  background: #111720;
+  box-shadow: 0 14px 28px #000a;
+}
+
+.pokemon-options button {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 8px 10px;
+  color: var(--ink);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pokemon-options button:hover,
+.pokemon-options button.active {
+  background: #242d3a;
+  color: var(--accent);
+}
+
+.pokemon-error,
+.roster-error {
+  display: block;
+  margin-top: 5px;
+  color: #e99181;
+  font-size: 9px;
+}
+
+.roster-required {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.pokemon-roster-editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.mon-card { overflow: visible; }
+.card-title .pokemon-combobox { flex: 1; }
+
+@media (max-width: 480px) {
+  .pokemon-roster-editor { grid-template-columns: 1fr; }
+}
