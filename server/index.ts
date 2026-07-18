@@ -17,6 +17,10 @@ const AI_TIMEOUT_MS = Math.max(3_000, Number(process.env.AI_TIMEOUT_MS) || 6_000
 const aiRateLimiter = new UserAiRateLimiter(aiQuotaFromEnvironment(process.env));
 async function withTimeout<T>(request: Promise<T>, provider: string) { let timer: ReturnType<typeof setTimeout> | undefined; const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${provider} request timed out after ${Math.round(AI_TIMEOUT_MS / 1000)} seconds.`)), AI_TIMEOUT_MS); }); try { return await Promise.race([request, timeout]); } finally { if (timer) clearTimeout(timer); } }
 
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 const recommendationInput = z.object({
   format: z.enum(["Singles", "Doubles"]),
   turn: z.record(z.string(), z.unknown()),

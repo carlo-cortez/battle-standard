@@ -13,6 +13,21 @@ Incomplete sets are allowed. For Pokémon in the bundled dataset, Team Setup off
 
 The app works in local-only mode before Supabase is configured. Recommendations need at least one server-side AI key. Groq is primary when both providers are configured; Gemini is the automatic fallback.
 
+## Deploy for friend testing
+
+This repository includes a Render Blueprint for one free full-stack web service. The service builds the Vite client, runs the Express API, and keeps Groq and Gemini credentials on the server.
+
+1. Create or sign in to a Render account and connect the GitHub account that can access this repository.
+2. In the Render Dashboard, choose **New → Blueprint**, select this repository, and use the root `render.yaml`.
+3. When Render prompts for variables marked `sync: false`, copy the matching values from your local `.env` into the Render form. Enter values individually; do not upload or commit the `.env` file.
+4. Create the Blueprint and wait for `/api/health` to report a healthy deployment.
+5. Copy the assigned `https://<service-name>.onrender.com` URL.
+6. In **Supabase → Authentication → URL Configuration**, set **Site URL** to that exact Render URL. Keep `http://localhost:5173/**` as an additional redirect URL for local development.
+7. Confirm that Google's authorized redirect URI is still the Supabase callback shown on **Supabase → Authentication → Sign In / Providers → Google**.
+8. Open the Render URL, sign in with Google, request one recommendation, and finish one test battle.
+
+The free Render service sleeps after 15 minutes without inbound traffic and can take about one minute to wake. That is acceptable for scheduled friend testing, but the cold start is too slow for the first decision of a timed live match. Open the app shortly before a match or move to a non-sleeping instance before relying on it during competition. Browser-local battle state remains available across server restarts; Supabase stores synced user data.
+
 ## Environment variables
 
 Put these in `.env` at the project root:
@@ -65,6 +80,7 @@ AI endpoints require a valid signed-in Supabase user in production. The server a
 ```dotenv
 AI_REQUESTS_PER_MINUTE=6
 AI_REQUESTS_PER_HOUR=30
+AI_TIMEOUT_MS=6000
 ```
 
 The MVP quota is stored in the running server process and resets on restart. It is appropriate for one small test deployment. Move the quota to a shared database or rate-limit service before adding multiple server instances or opening registration broadly.
