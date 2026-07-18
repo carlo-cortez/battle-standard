@@ -30,6 +30,13 @@ GROQ_MODEL=openai/gpt-oss-120b
 
 The Supabase URL and anon/publishable key are intentionally present twice: the `VITE_` values configure the browser client; the unprefixed values let the server validate the signed-in user. The anon key is designed for browser use with Row Level Security. AI keys are server-only and must never be prefixed with `VITE_`.
 
+### Secret safety
+
+- Put real credentials only in an ignored `.env` file locally or in the deployment platform's encrypted environment settings.
+- Never expose Groq, Gemini, Google Client secret, Supabase service-role, or other privileged credentials through a `VITE_` variable. Vite variables are included in browser code.
+- Commit only `.env.example`, using placeholders rather than real values.
+- `npm run check` starts with `npm run security:secrets`, which rejects environment files and recognizable secret formats that could otherwise be committed.
+
 Provider order is:
 
 1. Groq (`GROQ_API_KEY`) for the first recommendation attempt.

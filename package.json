@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "check": "tsc -b --pretty false && vitest run",
+    "check": "npm run security:secrets && tsc -b --pretty false && vitest run",
+    "security:secrets": "node scripts/check-secrets.mjs",
     "generate:pokemon-data": "tsx scripts/generate-pokemon-data.ts"
   },
   "dependencies": {
