@@ -41,10 +41,26 @@ You may configure only one provider. With free-tier accounts, configuring both i
 
 1. Open the Supabase SQL Editor.
 2. Run [the initial migration](supabase/migrations/202607100001_initial_schema.sql).
-3. In Authentication, create your user or enable email/password sign-up temporarily, create the account, then disable public sign-up if this will remain single-user.
-4. Add the project URL and anon/publishable key to `.env`.
+3. In **Authentication → Sign In / Providers → Email**, enable email/password authentication and **Allow new users to sign up**. Keep **Confirm email** enabled for a friend-facing deployment.
+4. In **Authentication → URL Configuration**, set **Site URL** to the deployed app URL and add `http://localhost:5173/**` as an additional redirect URL for local testing.
+5. Add the project URL and anon/publishable key to `.env`.
 
 Every table has a `user_id`, RLS is enabled, and every policy is owner-only.
+
+## Accounts and friend testing
+
+When Supabase is configured, **Sign in or register** opens the account dialog. A tester can create an account with email and password, confirm the email, sign in, sign out, and request a password-reset email. Public registration follows the Supabase **Allow new users to sign up** setting, so you can disable new accounts later without deploying new code. Invite-only registration is not required for the current friend-testing milestone.
+
+Supabase's built-in email service is suitable for initial testing but has a small email-sending allowance. Configure custom SMTP before broader testing. Confirmation and password-reset links require the deployed URL to be listed in Supabase's URL Configuration.
+
+AI endpoints require a valid signed-in Supabase user in production. The server also applies a per-user rolling quota across team previews, recommendations, and follow-ups. Defaults are six requests per minute and 30 per hour; override them with:
+
+```dotenv
+AI_REQUESTS_PER_MINUTE=6
+AI_REQUESTS_PER_HOUR=30
+```
+
+The MVP quota is stored in the running server process and resets on restart. It is appropriate for one small test deployment. Move the quota to a shared database or rate-limit service before adding multiple server instances or opening registration broadly.
 
 ## Current workflow
 

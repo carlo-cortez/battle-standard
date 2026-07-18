@@ -15,6 +15,10 @@ export default defineConfig({
   webServer: {
     command: "npm run dev:client -- --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173",
+    env: {
+      VITE_SUPABASE_URL: "https://auth.example.test",
+      VITE_SUPABASE_ANON_KEY: "e2e-anon-key",
+    },
     reuseExistingServer: !process.env.CI,
   },
 });
