@@ -49,7 +49,9 @@ Every table has a `user_id`, RLS is enabled, and every policy is owner-only.
 
 ## Accounts and friend testing
 
-When Supabase is configured, **Sign in or register** opens the account dialog. A tester can create an account with email and password, confirm the email, sign in, sign out, and request a password-reset email. Public registration follows the Supabase **Allow new users to sign up** setting, so you can disable new accounts later without deploying new code. Invite-only registration is not required for the current friend-testing milestone.
+When Supabase is configured, **Sign in or register** opens the account dialog. A tester can continue with Google or create an account with email and password, confirm the email, sign in, sign out, and request a password-reset email. Public registration follows the Supabase **Allow new users to sign up** setting, so you can disable new accounts later without deploying new code. Invite-only registration is not required for the current friend-testing milestone.
+
+Google OAuth returns to the app origin that started the sign-in. Enable Google in Supabase Authentication, add the Google Client ID and Client secret there, and allow both the local and deployed app URLs in Supabase URL Configuration. Keep the Google Client secret in Google/Supabase configuration only; never add it to this repository or a `VITE_` environment variable.
 
 Supabase's built-in email service is suitable for initial testing but has a small email-sending allowance. Configure custom SMTP before broader testing. Confirmation and password-reset links require the deployed URL to be listed in Supabase's URL Configuration.
 

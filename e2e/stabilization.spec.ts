@@ -58,6 +58,27 @@ async function seed(page: Page, options: { teams?: unknown; match?: unknown; tur
 
 const nav = (page: Page, name: string) => page.locator("header nav").getByRole("button", { name });
 
+test("Google sign-in starts through Supabase and returns to the current app", async ({ page }) => {
+  await page.route("**/auth/v1/authorize**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<main><h1>Google OAuth mock</h1></main>",
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sign in or register" }).click();
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page.getByRole("heading", { name: "Google OAuth mock" })).toBeVisible();
+
+  const authorizeUrl = new URL(page.url());
+  expect(authorizeUrl.origin).toBe("https://auth.example.test");
+  expect(authorizeUrl.pathname).toBe("/auth/v1/authorize");
+  expect(authorizeUrl.searchParams.get("provider")).toBe("google");
+  expect(authorizeUrl.searchParams.get("redirect_to")).toBe("http://127.0.0.1:4173");
+});
+
 test("public account registration requests confirmation and supports password-reset email", async ({ page }) => {
   let signUpBody: Record<string, unknown> | undefined;
   let resetBody: Record<string, unknown> | undefined;
