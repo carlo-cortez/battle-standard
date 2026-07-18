@@ -54,30 +54,20 @@ const uniqueNames = (names: string[]) => [...new Map(names.filter(Boolean).map((
 const revealedOpponents = (record: BattleRecord) => record.opponentBrought || uniqueNames(record.turns?.flatMap((entry) => entry.opponentActive) ?? []).join(" · ");
 
 function Auth({ user, onUser }: { user: User | null; onUser: (user: User | null) => void }) {
-  type AuthMode = "sign-in" | "sign-up" | "forgot" | "update-password";
-  const [open, setOpen] = useState(false); const [mode, setMode] = useState<AuthMode>("sign-in");
-  const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState("");
-  const [message, setMessage] = useState(""); const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false); const [message, setMessage] = useState(""); const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!supabase) return;
     let active = true;
     void supabase.auth.getSession().then(({ data }) => {
       if (active) onUser(data.session?.user ?? null);
     });
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       onUser(session?.user ?? null);
-      if (event === "PASSWORD_RECOVERY") { setMode("update-password"); setMessage("Choose a new password for your account."); setOpen(true); }
     });
     return () => { active = false; data.subscription.unsubscribe(); };
   }, [onUser]);
   if (!isSupabaseConfigured) return <span className="connection"><i className="local" /> Local mode</span>;
-  if (user && mode !== "update-password") return <div className="auth-inline"><span className="connection"><i /> {user.email}</span><Button variant="quiet" onClick={() => void supabase?.auth.signOut()}>Sign out</Button></div>;
-  const resetForm = (nextMode: AuthMode) => { setMode(nextMode); setPassword(""); setConfirmPassword(""); setMessage(""); };
-  const validatePassword = () => {
-    if (password.length < 8) return "Use at least 8 characters for your password.";
-    if ((mode === "sign-up" || mode === "update-password") && password !== confirmPassword) return "The passwords do not match.";
-    return "";
-  };
+  if (user) return <div className="auth-inline"><span className="connection"><i /> {user.email}</span><Button variant="quiet" onClick={() => void supabase?.auth.signOut()}>Sign out</Button></div>;
   const signInWithGoogle = async () => {
     setMessage(""); setBusy(true);
     try {
@@ -85,38 +75,7 @@ function Auth({ user, onUser }: { user: User | null; onUser: (user: User | null)
       if (error) throw error;
     } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Google sign-in failed. Please try again."); setBusy(false); }
   };
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault(); setMessage("");
-    if (!email.trim() && mode !== "update-password") { setMessage("Enter your email address."); return; }
-    const passwordError = mode === "forgot" ? "" : validatePassword();
-    if (passwordError) { setMessage(passwordError); return; }
-    setBusy(true);
-    try {
-      if (mode === "sign-in") {
-        const { data, error } = await supabase!.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw error;
-        if (!data.session) throw new Error("Check your email confirmation before signing in.");
-        setOpen(false);
-      } else if (mode === "sign-up") {
-        const { data, error } = await supabase!.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin } });
-        if (error) throw error;
-        if (data.session) { setMessage("Account created. You are signed in."); setOpen(false); }
-        else setMessage("Check your email to confirm the account, then sign in.");
-      } else if (mode === "forgot") {
-        const { error } = await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
-        if (error) throw error;
-        setMessage("If that account exists, a password-reset email has been sent.");
-      } else {
-        const { error } = await supabase!.auth.updateUser({ password });
-        if (error) throw error;
-        setMessage("Password updated. You can continue using the app.");
-        setTimeout(() => setOpen(false), 900);
-      }
-    } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Authentication failed. Please try again."); }
-    finally { setBusy(false); }
-  };
-  const title = mode === "sign-up" ? "Create your account" : mode === "forgot" ? "Reset your password" : mode === "update-password" ? "Choose a new password" : "Welcome back";
-  return <div className="auth-entry"><Button variant="quiet" aria-haspopup="dialog" onClick={() => { resetForm("sign-in"); setOpen(true); }}>Sign in or register</Button>{open && <div className="auth-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && mode !== "update-password") setOpen(false); }}><div className="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title"><button className="auth-close" type="button" aria-label="Close account dialog" onClick={() => setOpen(false)}>×</button><p className="eyebrow">Battle Standard account</p><h2 id="auth-title">{title}</h2>{mode !== "forgot" && mode !== "update-password" && <><button className="oauth-button" type="button" disabled={busy} onClick={() => void signInWithGoogle()}><span aria-hidden="true">G</span>Continue with Google</button><div className="auth-divider"><span>or use email</span></div><div className="auth-tabs" role="tablist" aria-label="Account action"><button type="button" role="tab" aria-selected={mode === "sign-in"} className={mode === "sign-in" ? "active" : ""} onClick={() => resetForm("sign-in")}>Sign in</button><button type="button" role="tab" aria-selected={mode === "sign-up"} className={mode === "sign-up" ? "active" : ""} onClick={() => resetForm("sign-up")}>Create account</button></div></>}<form onSubmit={submit}>{mode !== "update-password" && <label><span>Email</span><Input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>}{mode !== "forgot" && <label><span>{mode === "update-password" ? "New password" : "Password"}</span><Input type="password" minLength={8} autoComplete={mode === "sign-in" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}{(mode === "sign-up" || mode === "update-password") && <label><span>Confirm password</span><Input type="password" minLength={8} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>}<Button type="submit" variant="primary" disabled={busy}>{busy ? "Please wait…" : mode === "sign-up" ? "Create account" : mode === "forgot" ? "Send reset email" : mode === "update-password" ? "Update password" : "Sign in"}</Button></form>{message && <p className="auth-message" role="status">{message}</p>}{mode === "sign-in" && <button className="auth-link" type="button" onClick={() => resetForm("forgot")}>Forgot password?</button>}{(mode === "forgot" || mode === "update-password") && <button className="auth-link" type="button" onClick={() => resetForm("sign-in")}>Back to sign in</button>}<p className="auth-note">Accounts keep each tester's teams and battle history separate. Email confirmation depends on your Supabase settings.</p></div></div>}</div>;
+  return <div className="auth-entry"><Button variant="quiet" aria-haspopup="dialog" onClick={() => { setMessage(""); setOpen(true); }}>Sign in</Button>{open && <div className="auth-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}><div className="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title"><button className="auth-close" type="button" aria-label="Close account dialog" onClick={() => setOpen(false)}>×</button><p className="eyebrow">Battle Standard account</p><h2 id="auth-title">Sign in to Battle Standard</h2><button className="oauth-button" type="button" disabled={busy} onClick={() => void signInWithGoogle()}><span aria-hidden="true">G</span>{busy ? "Opening Google…" : "Continue with Google"}</button>{message && <p className="auth-message" role="status">{message}</p>}<p className="auth-note">Use your Google account to keep your teams and battle history separate from other testers.</p></div></div>}</div>;
 }
 
 function TeamSetup({ team, setTeam, format, teamCounts, onFormat, onNext }: { team: PokemonBuild[]; setTeam: (team: PokemonBuild[]) => void; format: MatchSetupState["format"]; teamCounts: Record<MatchSetupState["format"], number>; onFormat: (format: MatchSetupState["format"]) => void; onNext: () => void }) {

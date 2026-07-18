@@ -68,7 +68,10 @@ test("Google sign-in starts through Supabase and returns to the current app", as
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Sign in or register" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("dialog", { name: "Sign in to Battle Standard" })).toBeVisible();
+  await expect(page.getByLabel("Email")).toHaveCount(0);
+  await expect(page.getByLabel("Password")).toHaveCount(0);
   await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect(page.getByRole("heading", { name: "Google OAuth mock" })).toBeVisible();
 
@@ -77,48 +80,6 @@ test("Google sign-in starts through Supabase and returns to the current app", as
   expect(authorizeUrl.pathname).toBe("/auth/v1/authorize");
   expect(authorizeUrl.searchParams.get("provider")).toBe("google");
   expect(authorizeUrl.searchParams.get("redirect_to")).toBe("http://127.0.0.1:4173");
-});
-
-test("public account registration requests confirmation and supports password-reset email", async ({ page }) => {
-  let signUpBody: Record<string, unknown> | undefined;
-  let resetBody: Record<string, unknown> | undefined;
-  await page.route("**/auth/v1/signup**", async (route) => {
-    signUpBody = route.request().postDataJSON() as Record<string, unknown>;
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        id: "auth-user-e2e", aud: "authenticated", role: "authenticated", email: "friend@example.com",
-        app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, identities: [],
-        created_at: "2026-07-18T00:00:00.000Z", confirmation_sent_at: "2026-07-18T00:00:00.000Z",
-      }),
-    });
-  });
-  await page.route("**/auth/v1/recover**", async (route) => {
-    resetBody = route.request().postDataJSON() as Record<string, unknown>;
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-  });
-
-  await page.goto("/");
-  await page.getByRole("button", { name: "Sign in or register" }).click();
-  const dialog = page.locator(".auth-dialog");
-  await expect(page.getByRole("dialog", { name: "Welcome back" })).toBeVisible();
-  await dialog.getByRole("tab", { name: "Create account" }).click();
-  await expect(page.getByRole("dialog", { name: "Create your account" })).toBeVisible();
-  await dialog.getByLabel("Email").fill("friend@example.com");
-  await dialog.getByLabel("Password", { exact: true }).fill("battle-test-123");
-  await dialog.getByLabel("Confirm password").fill("battle-test-123");
-  await dialog.getByRole("button", { name: "Create account", exact: true }).click();
-  await expect(dialog.getByRole("status")).toHaveText("Check your email to confirm the account, then sign in.");
-  expect(signUpBody).toMatchObject({ email: "friend@example.com", password: "battle-test-123" });
-
-  await dialog.getByRole("tab", { name: "Sign in" }).click();
-  await dialog.getByRole("button", { name: "Forgot password?" }).click();
-  await expect(page.getByRole("dialog", { name: "Reset your password" })).toBeVisible();
-  await dialog.getByLabel("Email").fill("friend@example.com");
-  await dialog.getByRole("button", { name: "Send reset email" }).click();
-  await expect(dialog.getByRole("status")).toContainText("password-reset email has been sent");
-  expect(resetBody).toMatchObject({ email: "friend@example.com" });
 });
 
 test("Team Setup keeps formats separate, validates names, advances with Enter, and keeps details collapsed", async ({ page }) => {
