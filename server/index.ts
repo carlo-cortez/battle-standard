@@ -11,6 +11,12 @@ import { aiQuotaFromEnvironment, UserAiRateLimiter } from "./rateLimit.js";
 
 const app = express();
 app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  next();
+});
 app.use(express.json({ limit: "96kb" }));
 
 const AI_TIMEOUT_MS = Math.max(3_000, Number(process.env.AI_TIMEOUT_MS) || 6_000);
@@ -68,7 +74,7 @@ const teamPreviewSchema = {
 
 async function authenticatedUser(token: string | undefined) {
   const url = process.env.SUPABASE_URL; const key = process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) return process.env.NODE_ENV !== "production" ? { id: "local-development" } : null;
+  if (!url || !key) return process.env.NODE_ENV === "development" ? { id: "local-development" } : null;
   if (!token?.startsWith("Bearer ")) return null;
   const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data, error } = await client.auth.getUser(token.slice(7));
@@ -145,7 +151,7 @@ function modelError(error: unknown, fallback: string) {
   if (isRateLimitError(error)) return "All configured AI providers are currently rate-limited. Try again later.";
   if (/failed_generation|generated json|jsonschema|expected schema|does not (?:match|validate)/i.test(message)) return "The AI could not produce a valid structured recommendation. Try again.";
   if (isRecoverableProviderError(error)) return "The AI providers took too long to respond. Try the recommendation again.";
-  return message;
+  return fallback;
 }
 
 type GeneratedRecommendation = { actions: Array<{ pokemon: string; action: string; target: string }>; reason: string; risk: string; next: string; preservation: string; assumptions: string[] };
