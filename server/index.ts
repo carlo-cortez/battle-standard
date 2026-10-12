@@ -7,20 +7,43 @@ import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { isRateLimitError, isRecoverableProviderError, shouldFallbackToGemini, shouldForceGeminiFallback } from "./providerPolicy.js";
-import { aiQuotaFromEnvironment, UserAiRateLimiter } from "./rateLimit.js";
+import { aiQuotaFromEnvironment, GlobalAiDailyCap, globalDailyLimitFromEnvironment, UserAiRateLimiter } from "./rateLimit.js";
+import { allowedEmailsFromEnvironment, isEmailAllowed } from "./accessPolicy.js";
+import { claimPersistentQuota, isPersistentQuotaEnabled } from "./persistentQuota.js";
 
 const app = express();
 app.disable("x-powered-by");
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self'",
+  // 'unsafe-inline' only for styles (dynamic inline styles are low-risk); the
+  // app's fonts come from Google Fonts. Scripts stay strict 'self'.
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: https:",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+].join("; ");
+
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 });
 app.use(express.json({ limit: "96kb" }));
 
 const AI_TIMEOUT_MS = Math.max(3_000, Number(process.env.AI_TIMEOUT_MS) || 6_000);
-const aiRateLimiter = new UserAiRateLimiter(aiQuotaFromEnvironment(process.env));
+const aiQuota = aiQuotaFromEnvironment(process.env);
+const aiRateLimiter = new UserAiRateLimiter(aiQuota);
+const globalDailyLimit = globalDailyLimitFromEnvironment(process.env);
+const globalDailyCap = new GlobalAiDailyCap(globalDailyLimit);
+const allowedEmails = allowedEmailsFromEnvironment(process.env);
 async function withTimeout<T>(request: Promise<T>, provider: string) { let timer: ReturnType<typeof setTimeout> | undefined; const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${provider} request timed out after ${Math.round(AI_TIMEOUT_MS / 1000)} seconds.`)), AI_TIMEOUT_MS); }); try { return await Promise.race([request, timeout]); } finally { if (timer) clearTimeout(timer); } }
 
 app.get("/api/health", (_req, res) => {
@@ -72,13 +95,22 @@ const teamPreviewSchema = {
   }, required: ["selected", "leads", "gamePlan", "matchupNotes", "assumptions"],
 } as const;
 
-async function authenticatedUser(token: string | undefined) {
+type AuthenticatedUser = { id: string; email: string | null; token: string | null };
+
+async function authenticatedUser(token: string | undefined): Promise<AuthenticatedUser | null> {
   const url = process.env.SUPABASE_URL; const key = process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) return process.env.NODE_ENV === "development" ? { id: "local-development" } : null;
+  if (!url || !key) return process.env.NODE_ENV === "development" ? { id: "local-development", email: null, token: null } : null;
   if (!token?.startsWith("Bearer ")) return null;
+  const accessToken = token.slice(7);
   const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data, error } = await client.auth.getUser(token.slice(7));
-  return !error && data.user ? { id: data.user.id } : null;
+  const { data, error } = await client.auth.getUser(accessToken);
+  return !error && data.user ? { id: data.user.id, email: data.user.email ?? null, token: accessToken } : null;
+}
+
+function enforceAllowlist(user: AuthenticatedUser, res: express.Response) {
+  if (isEmailAllowed(user.email, allowedEmails)) return true;
+  res.status(403).json({ error: "This account is not on the access list for AI features." });
+  return false;
 }
 
 function consumeAiQuota(userId: string, res: express.Response) {
@@ -88,6 +120,43 @@ function consumeAiQuota(userId: string, res: express.Response) {
   res.setHeader("Retry-After", String(quota.retryAfterSeconds));
   res.status(429).json({ error: `AI request limit reached. Try again in about ${quota.retryAfterSeconds} seconds.` });
   return false;
+}
+
+function rejectGlobalCapacity(retryAfterSeconds: number, res: express.Response) {
+  res.setHeader("Retry-After", String(retryAfterSeconds));
+  res.status(503).json({ error: "Daily AI capacity for this server has been reached. Try again later." });
+  return false;
+}
+
+// Per-user limits are checked before the global cap so a user who is already
+// over their own limit cannot burn shared capacity with rejected requests.
+// When the durable quota is enabled and reachable it is authoritative for both
+// the per-user limits and the global daily cap; otherwise the in-memory limiter
+// and in-memory global cap apply. Returns false after writing the response.
+async function enforceAiQuota(user: AuthenticatedUser, res: express.Response) {
+  const url = process.env.SUPABASE_URL; const key = process.env.SUPABASE_ANON_KEY;
+  if (isPersistentQuotaEnabled(process.env) && user.token && url && key) {
+    const client = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${user.token}` } },
+    });
+    const decision = await claimPersistentQuota(client, aiQuota, globalDailyLimit);
+    if (decision.status === "allowed") {
+      res.setHeader("X-RateLimit-Remaining", String(decision.remaining));
+      return true;
+    }
+    if (decision.status === "blocked") {
+      if (decision.scope === "day-global") return rejectGlobalCapacity(decision.retryAfterSeconds, res);
+      res.setHeader("Retry-After", String(decision.retryAfterSeconds));
+      res.status(429).json({ error: `AI request limit reached. Try again in about ${decision.retryAfterSeconds} seconds.` });
+      return false;
+    }
+    // decision.status === "unavailable": fall back to the in-memory limits.
+  }
+  if (!consumeAiQuota(user.id, res)) return false;
+  const globalResult = globalDailyCap.consume();
+  if (!globalResult.allowed) return rejectGlobalCapacity(globalResult.retryAfterSeconds, res);
+  return true;
 }
 
 async function geminiStructured(prompt: string, schema: object) {
@@ -187,10 +256,11 @@ function sanitizeTeamPreview(value: unknown, bringCount: number, leadCount: numb
 app.post("/api/recommend", async (req, res) => {
   const user = await authenticatedUser(req.headers.authorization);
   if (!user) return res.status(401).json({ error: "Sign in before requesting an AI recommendation." });
+  if (!enforceAllowlist(user, res)) return;
   const parsed = recommendationInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "The battle state is incomplete or invalid." });
   if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) return res.status(503).json({ error: "No AI provider is configured on the server." });
-  if (!consumeAiQuota(user.id, res)) return;
+  if (!(await enforceAiQuota(user, res))) return;
 
   try {
   const result = await generateStructured(`You are a fast, conservative competitive Pokémon battle adviser. The user has only 45 seconds. Put the exact move or switch and target first. The entire visible response must be readable in 30–45 seconds and stay under 75 words total: reason at most 18 words; risk at most 12; preservation at most 10; next at most 10; at most 3 assumptions of 8 words each. Do not repeat the action in the prose. The local analysis contains estimates, not authoritative calculator results. Follow the six checks in order: knockout, order, restrictions, targeting danger, preservation, safest winning action. User-entered moves and set details are authoritative. If a needed move or set detail is missing, infer only when necessary, list it in assumptions, and never present it as confirmed. Never invent mechanics, damage numbers, or certainty. Prefer the lowest-risk line that advances the game. Every action's pokemon must exactly match a currently non-empty myActive name, unless the user explicitly asks for a replacement after fainting. Never give an action to a benched, fainted, or blank-slot Pokémon. For a switch, action must be exactly "Switch" and target must be the replacement Pokémon from the bench. Never target self, never switch a Pokémon into itself, and never choose another currently active Pokémon as the replacement. If the question says a Pokémon fainted, choose the safest replacement from the entered bench and return action "Switch" with that replacement in target; do not recommend a move for the fainted Pokémon. For Doubles return exactly two actions when two allied Pokémon are active; otherwise return one.
@@ -206,12 +276,13 @@ ${JSON.stringify(parsed.data)}`, recommendationSchema);
 app.post("/api/team-preview", async (req, res) => {
   const user = await authenticatedUser(req.headers.authorization);
   if (!user) return res.status(401).json({ error: "Sign in before requesting a team recommendation." });
+  if (!enforceAllowlist(user, res)) return;
   const parsed = teamPreviewInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Add your roster and the opponent team first." });
   const bringCount = parsed.data.format === "Singles" ? 3 : 4;
   if (parsed.data.team.length < bringCount) return res.status(400).json({ error: `Save at least ${bringCount} Pokémon first.` });
   if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) return res.status(503).json({ error: "No AI provider is configured on the server." });
-  if (!consumeAiQuota(user.id, res)) return;
+  if (!(await enforceAiQuota(user, res))) return;
 
   try {
     const result = await generateStructured(`You are a competitive Pokémon team-preview adviser. Choose exactly ${bringCount} Pokémon from the user's saved roster for ${parsed.data.format}. For Singles, order them Lead, Second, Last. For Doubles, order them Lead 1, Lead 2, Back 1, Back 2. Use supplied moves, items, abilities, and notes as authoritative. When information is missing, infer a plausible common legal role or move set, but put every inference in assumedMoves and assumptions. Never claim an assumed move is confirmed. Use exact roster Pokémon names so the app can apply the selection. The entire visible recommendation must be readable in 30–60 seconds: keep gamePlan under 50 words, return at most 3 matchupNotes of at most 14 words each, keep roles under 5 words, and avoid repeating information between fields.
@@ -230,10 +301,11 @@ ${JSON.stringify(parsed.data)}`, teamPreviewSchema);
 app.post("/api/follow-up", async (req, res) => {
   const user = await authenticatedUser(req.headers.authorization);
   if (!user) return res.status(401).json({ error: "Sign in before asking a follow-up." });
+  if (!enforceAllowlist(user, res)) return;
   const parsed = followUpInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Enter a short follow-up question first." });
   if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) return res.status(503).json({ error: "No AI provider is configured on the server." });
-  if (!consumeAiQuota(user.id, res)) return;
+  if (!(await enforceAiQuota(user, res))) return;
   try {
     const result = await generateText(`You are a concise competitive Pokémon battle adviser answering a follow-up during a 45-second live timer. Treat the supplied recommendation as context, not as a move the user definitely used. Answer directly in at most 35 words. Lead with the exact move, target, switch, or replacement. State at most one necessary assumption.\n\nRecommendation:\n${JSON.stringify(parsed.data.recommendation)}\n\nFollow-up:\n${parsed.data.message}`);
     return res.json({ reply: result.value, provider: result.provider });

@@ -31,3 +31,9 @@ services:
         value: "30"
       - key: AI_TIMEOUT_MS
         value: "6000"
+      - key: AI_REQUESTS_PER_DAY_GLOBAL
+        value: "0"
+      - key: ALLOWED_EMAILS
+        sync: false
+      - key: AI_PERSISTENT_QUOTA
+        value: "false"
