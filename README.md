@@ -66,6 +66,7 @@ You may configure only one provider. With free-tier accounts, configuring both i
 3. In **Authentication → Sign In / Providers → Google**, enable Google and add the Web Client ID and Client secret. Disable the Email provider when no existing password accounts need access.
 4. In **Authentication → URL Configuration**, set **Site URL** to the deployed app URL and add `http://localhost:5173/**` as an additional redirect URL for local testing.
 5. Add the project URL and anon/publishable key to `.env`.
+6. Optional: run [the AI quota migration](supabase/migrations/202610120001_ai_usage_quota.sql) to enable the durable quota described below.
 
 Every table has a `user_id`, RLS is enabled, and every policy is owner-only.
 
@@ -83,7 +84,17 @@ AI_REQUESTS_PER_HOUR=30
 AI_TIMEOUT_MS=6000
 ```
 
-The MVP quota is stored in the running server process and resets on restart. It is appropriate for one small test deployment. Move the quota to a shared database or rate-limit service before adding multiple server instances or opening registration broadly.
+By default the quota is stored in the running server process and resets on restart (including every free-tier cold start). Three optional controls tighten cost protection:
+
+- **Allowlist** — set `ALLOWED_EMAILS` to a comma-separated list of Google account emails. Only those accounts can use AI features; any other signed-in user gets `403`. Leave it empty to allow every signed-in user.
+- **Global daily cap** — set `AI_REQUESTS_PER_DAY_GLOBAL` to a positive number to stop all AI requests once that many have been served in a rolling 24 hours, across all users. `0` disables it.
+- **Durable quota** — run the AI quota migration, then set `AI_PERSISTENT_QUOTA=true`. Per-user limits and the global daily cap are then counted in Supabase through the `claim_ai_request` function, so they survive restarts and are shared across instances. If the function is missing or Supabase is unreachable, the server falls back to the in-memory limiter.
+
+```dotenv
+ALLOWED_EMAILS=you@gmail.com,friend@gmail.com
+AI_REQUESTS_PER_DAY_GLOBAL=300
+AI_PERSISTENT_QUOTA=true
+```
 
 ## Current workflow
 
