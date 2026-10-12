@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"tsx watch server/index.ts\"",
+    "dev": "NODE_ENV=development concurrently -k \"vite\" \"tsx watch server/index.ts\"",
     "dev:client": "vite",
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
